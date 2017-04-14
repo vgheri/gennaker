@@ -1,0 +1,25 @@
+version: '2'
+services:
+  pgsql:
+    build: ./sql
+    image: vpcorp/gennaker-pgsql-ssl
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=gennaker
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+
+  gennaker:
+    build: .
+    image: vpcorp/gennaker
+    ports:
+      - "8080:8080"
+    environment:
+      - POSTGRES_DB=gennaker
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_HOST=pgsql
+      - POSTGRES_PORT=5432
+    depends_on:
+      - pgsql
