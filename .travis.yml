@@ -1,0 +1,21 @@
+sudo: required
+
+services:
+  - docker
+
+language:
+  - go
+
+go:
+  - 1.8.x
+
+before_script:
+  - sudo /etc/init.d/postgresql stop
+
+script: make docker.test GIT_SHA=$TRAVIS_COMMIT CURRENT_BRANCH=$TRAVIS_BRANCH BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+
+deploy:
+  provider: script
+  script: make docker.push GIT_SHA=$TRAVIS_COMMIT CURRENT_BRANCH=$TRAVIS_BRANCH BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+  on:
+    branch: master
