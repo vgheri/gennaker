@@ -24,28 +24,36 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/vgheri/gennaker/api"
+	"github.com/vgheri/gennaker/engine"
+	"github.com/vgheri/gennaker/repository/pg"
 )
 
 // startCmd represents the start command
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "start runs the gennaker service",
+	Long:  `gennaker start runs the HTTP API server powering gennaker`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO: Work your own magic here
 		fmt.Println("start called")
-		for {
-
+		repository, err := pg.NewClient(postgresHost, fmt.Sprintf("%d", postgresPort), postgresUsername,
+			postgresPassword, postgresDBName, int(postgresMaxConnections))
+		if err != nil {
+			panic(err)
 		}
+		deploymentEngine := engine.New(repository, chartsDownloadFolder)
+		server, err := api.New(deploymentEngine)
+		if err != nil {
+			panic(err)
+		}
+		server.Start(HTTPListenPort)
 	},
 }
 
-var port int32
+var HTTPListenPort, postgresPort, postgresMaxConnections int32
+var postgresHost, postgresUsername, postgresPassword, postgresDBName string
+var chartsDownloadFolder string
 
 func init() {
 	RootCmd.AddCommand(startCmd)
@@ -58,5 +66,12 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	startCmd.Flags().Int32VarP(&port, "port", "p", 8000, "Port number for the HTTP server")
+	startCmd.Flags().Int32VarP(&HTTPListenPort, "http-port", "p", 8080, "Port number for the HTTP server")
+	startCmd.Flags().Int32Var(&postgresPort, "pg-port", 5432, "Port number for Postgres")
+	startCmd.Flags().Int32Var(&postgresMaxConnections, "db-maxconn", 10, "Max number of connections to Postgres")
+	startCmd.Flags().StringVar(&postgresHost, "pg-host", "localhost", "Postgres installation host name")
+	startCmd.Flags().StringVar(&postgresDBName, "pg-db", "gennaker", "Postgres database name")
+	startCmd.Flags().StringVar(&postgresUsername, "pg-username", "postgres", "Postgres username")
+	startCmd.Flags().StringVar(&postgresPassword, "pg-password", "password", "Postgres password")
+	startCmd.Flags().StringVarP(&chartsDownloadFolder, "save-dir", "d", "localhost", "Path used to download charts. Must be absolute")
 }

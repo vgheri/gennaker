@@ -1,62 +1,53 @@
 package pg
 
 import (
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"fmt"
 	// Used by database/sql
 	_ "github.com/lib/pq"
 )
 
-func generateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	// Note that err == nil only if we read len(b) bytes.
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// GenerateRandomString returns a random string.
-func generateRandomString(s int) string {
-	b, _ := generateRandomBytes(s)
-	return base64.URLEncoding.EncodeToString(b)
-}
+var firstTestDeploymentID int
+var secondTestDeploymentID int
 
 func insertDummyData(db *sql.DB) {
 	queries := []string{
 		//Deployment 1
-		"INSERT INTO pipeline(id) VALUES(1)",
-		"INSERT INTO pipeline_step(id, step_number, parent_id, pipeline_id, target_namespace, auto_deploy) VALUES(1, 1, NULL, 1, 'dev', true)",
-		"INSERT INTO pipeline_step(id, step_number, parent_id, pipeline_id, target_namespace, auto_deploy) VALUES(2, 2, NULL, 1, 'int', true)",
-		"INSERT INTO pipeline_step(id, step_number, parent_id, pipeline_id, target_namespace, auto_deploy) VALUES(3, 3, 1, 1, 'ppd', false)",
-		"INSERT INTO pipeline_step(id, step_number, parent_id, pipeline_id, target_namespace, auto_deploy) VALUES(4, 4, 3, 1, 'prod', false)",
-		"INSERT INTO deployment(id, chart, repository_url, pipeline_id) VALUES(1, 'test-chart', 'https://test.com/helm/charts', 1)",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(1, 1, 'dev', 'testcorp/testimg', 'v0.0.1')",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(2, 1, 'int', 'testcorp/testimg', 'v0.0.1')",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(3, 1, 'dev', 'testcorp/testimg', 'v0.0.2')",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(4, 1, 'int', 'testcorp/testimg', 'v0.0.2')",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(5, 1, 'ppd', 'testcorp/testimg', 'v0.0.1')",
+		"INSERT INTO deployment(name, chart, repository_url) VALUES('test app', 'test-chart', 'https://test.com/helm/charts') RETURNING id",
+		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(1, NULL, (SELECT id FROM deployment where chart = 'test-chart'), 'dev', true) RETURNING id",
+		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(2, NULL, (SELECT id FROM deployment where chart = 'test-chart'), 'int', true) RETURNING id",
+		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(3, 1, (SELECT id FROM deployment where chart = 'test-chart'), 'ppd', false) RETURNING id",
+		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(4, 3, (SELECT id FROM deployment where chart = 'test-chart'), 'prod', false) RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'dev', 'testcorp/testimg', 'v0.0.1') RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'int', 'testcorp/testimg', 'v0.0.1') RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'dev', 'testcorp/testimg', 'v0.0.2') RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'int', 'testcorp/testimg', 'v0.0.2') RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'ppd', 'testcorp/testimg', 'v0.0.1') RETURNING id",
 		//Deployment 2
-		"INSERT INTO pipeline(id) VALUES(2)",
-		"INSERT INTO pipeline_step(id, step_number, parent_id, pipeline_id, target_namespace, auto_deploy) VALUES(10, 1, NULL, 2, 'dev', true)",
-		"INSERT INTO pipeline_step(id, step_number, parent_id, pipeline_id, target_namespace, auto_deploy) VALUES(11, 2, NULL, 2, 'int', true)",
-		"INSERT INTO pipeline_step(id, step_number, parent_id, pipeline_id, target_namespace, auto_deploy) VALUES(12, 3, 1, 2, 'ppd', false)",
-		"INSERT INTO pipeline_step(id, step_number, parent_id, pipeline_id, target_namespace, auto_deploy) VALUES(13, 4, 3, 2, 'prod', false)",
-		"INSERT INTO deployment(id, chart, repository_url, pipeline_id) VALUES(10, 'test-new-chart', 'https://test.com/helm/charts', 2)",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(10, 10, 'dev', 'testcorp/testimg', 'v0.0.1')",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(11, 10, 'int', 'testcorp/testimg', 'v0.0.1')",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(12, 10, 'dev', 'testcorp/testimg', 'v0.0.2')",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(13, 10, 'int', 'testcorp/testimg', 'v0.0.2')",
-		"INSERT INTO release(id, deployment_id, namespace, image, tag) VALUES(14, 10, 'ppd', 'testcorp/testimg', 'v0.0.1')",
+		"INSERT INTO deployment(name, chart, repository_url) VALUES('test app 2', 'test-new-chart', 'https://test.com/helm/charts') RETURNING id",
+		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(1, NULL, (SELECT id FROM deployment where chart = 'test-new-chart'), 'dev', true) RETURNING id",
+		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(2, NULL, (SELECT id FROM deployment where chart = 'test-new-chart'), 'int', true) RETURNING id",
+		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(3, 1, (SELECT id FROM deployment where chart = 'test-new-chart'), 'ppd', false) RETURNING id",
+		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(4, 3, (SELECT id FROM deployment where chart = 'test-new-chart'), 'prod', false) RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'dev', 'testcorp/testimg', 'v0.0.1') RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'int', 'testcorp/testimg', 'v0.0.1') RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'dev', 'testcorp/testimg', 'v0.0.2') RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'int', 'testcorp/testimg', 'v0.0.2') RETURNING id",
+		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'ppd', 'testcorp/testimg', 'v0.0.1') RETURNING id",
 	}
-	for _, q := range queries {
-		_, err := db.Exec(q)
+	for i, q := range queries {
+		row := db.QueryRow(q)
+		var err error
+		if i == 0 {
+			err = row.Scan(&firstTestDeploymentID)
+		} else if i == 10 {
+			err = row.Scan(&secondTestDeploymentID)
+		} else {
+			var useless int
+			err = row.Scan(&useless)
+		}
 		if err != nil {
-			fmt.Printf("InsertDummyData: %s\n", err)
+			panic(err)
 		}
 	}
 }
@@ -67,7 +58,6 @@ func teardown(db *sql.DB) {
 		`DELETE FROM pipeline_step`,
 		`DELETE FROM release`,
 		`DELETE FROM deployment`,
-		`DELETE FROM pipeline`,
 	}
 
 	for _, q := range queries {

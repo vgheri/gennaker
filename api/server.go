@@ -1,16 +1,31 @@
 package api
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/vgheri/gennaker/api/handler"
+	"github.com/vgheri/gennaker/api/route"
+	"github.com/vgheri/gennaker/engine"
 )
 
-func serve(port string) error {
-	router := mux.NewRouter().StrictSlash(true)
-	// router.Handle("/release/list", nil).Methods("GET")
+type Server struct {
+	deploymentEngine engine.DeploymentEngine
+}
+
+func New(engine engine.DeploymentEngine) (*Server, error) {
+	if engine == nil {
+		return nil, errors.New("Nil deployment engine")
+	}
+	return &Server{deploymentEngine: engine}, nil
+}
+
+func (s *Server) Start(port int32) error {
+	handlers := handler.New(s.deploymentEngine)
+	router := route.NewRouter(handlers)
 	http.Handle("/", accessControl(router))
-	return http.ListenAndServe(":"+port, nil)
+	return http.ListenAndServe(fmt.Sprintf(":%d", port), router)
 }
 
 func accessControl(h http.Handler) http.Handler {

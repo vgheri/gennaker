@@ -38,7 +38,6 @@ func NewClient(host, port, username, password, dbname string, maxconn int) (engi
 			if err == nil {
 				conn.SetMaxOpenConns(maxconn)
 				conn.SetMaxIdleConns(maxconn)
-				fmt.Printf("MaxOpenConns set to %d\n", maxconn)
 				connected = true
 				break
 			}
