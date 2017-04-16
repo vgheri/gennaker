@@ -1,0 +1,14 @@
+version: 1
+pipeline:
+  steps:
+    - step: 1
+      namespace: int
+      autodeploy: true
+    - step: 2
+      namespace: ppd
+      autodeploy: false
+      parent_step: 1
+    - step: 3
+      namespace: prod
+      autodeploy: false
+      parent_step: 2

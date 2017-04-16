@@ -73,60 +73,125 @@ func Test_GetDeployment(t *testing.T) {
 		Convey("With an empty db", func() {
 			teardown(db)
 			Convey("It should return ErrResourceNotFound", func() {
-				deployment, err := pg.GetDeployment(1)
+				deployment, err := pg.GetDeployment(125)
 				So(err, ShouldEqual, engine.ErrResourceNotFound)
 				So(deployment, ShouldBeNil)
 			})
 		})
 		Convey("With a populated db", func() {
+			teardown(db)
 			insertDummyData(db)
 			Convey("It should return a populated object", func() {
-				deployment, err := pg.GetDeployment(1)
+				deployment, err := pg.GetDeployment(firstTestDeploymentID)
 				So(err, ShouldBeNil)
-				So(deployment.ID, ShouldEqual, 1)
+				So(deployment.ID, ShouldNotEqual, 0)
+				So(deployment.Name, ShouldEqual, "test app")
 				So(deployment.ChartName, ShouldEqual, "test-chart")
 				So(deployment.RepositoryURL, ShouldEqual, "https://test.com/helm/charts")
-				So(deployment.Pipeline.ID, ShouldEqual, 1)
-				So(len(deployment.Pipeline.RootSteps), ShouldEqual, 2)
-				So(deployment.Pipeline.RootSteps[0].ID, ShouldEqual, 1)
-				So(deployment.Pipeline.RootSteps[0].StepNumber, ShouldEqual, 1)
-				So(deployment.Pipeline.RootSteps[0].ParentID, ShouldEqual, 0)
-				So(deployment.Pipeline.RootSteps[0].PipelineID, ShouldEqual, 1)
-				So(deployment.Pipeline.RootSteps[0].TargetNamespace, ShouldEqual, "dev")
-				So(deployment.Pipeline.RootSteps[0].AutomaticDeploy, ShouldBeTrue)
-				So(deployment.Pipeline.RootSteps[0].NextSteps, ShouldHaveLength, 1)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].ID, ShouldEqual, 3)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].StepNumber, ShouldEqual, 3)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].ParentID, ShouldEqual, 1)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].PipelineID, ShouldEqual, 1)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].TargetNamespace, ShouldEqual, "ppd")
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].AutomaticDeploy, ShouldBeFalse)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].NextSteps, ShouldHaveLength, 1)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].NextSteps[0].ID, ShouldEqual, 4)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].NextSteps[0].StepNumber, ShouldEqual, 4)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].NextSteps[0].ParentID, ShouldEqual, 3)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].NextSteps[0].PipelineID, ShouldEqual, 1)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].NextSteps[0].TargetNamespace, ShouldEqual, "prod")
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].NextSteps[0].AutomaticDeploy, ShouldBeFalse)
-				So(deployment.Pipeline.RootSteps[0].NextSteps[0].NextSteps[0].NextSteps, ShouldBeEmpty)
-				So(deployment.Pipeline.RootSteps[1].ID, ShouldEqual, 2)
-				So(deployment.Pipeline.RootSteps[1].StepNumber, ShouldEqual, 2)
-				So(deployment.Pipeline.RootSteps[1].ParentID, ShouldEqual, 0)
-				So(deployment.Pipeline.RootSteps[1].PipelineID, ShouldEqual, 1)
-				So(deployment.Pipeline.RootSteps[1].TargetNamespace, ShouldEqual, "int")
-				So(deployment.Pipeline.RootSteps[1].AutomaticDeploy, ShouldBeTrue)
-				So(len(deployment.Pipeline.RootSteps[1].NextSteps), ShouldEqual, 0)
+				So(deployment.Pipeline, ShouldHaveLength, 2)
+				So(deployment.Pipeline[0].ID, ShouldBeGreaterThanOrEqualTo, 1)
+				So(deployment.Pipeline[0].StepNumber, ShouldEqual, 1)
+				So(deployment.Pipeline[0].ParentStepNumber, ShouldEqual, 0)
+				So(deployment.Pipeline[0].TargetNamespace, ShouldEqual, "dev")
+				So(deployment.Pipeline[0].AutomaticDeploy, ShouldBeTrue)
+				So(deployment.Pipeline[0].NextSteps, ShouldHaveLength, 1)
+				So(deployment.Pipeline[0].NextSteps[0].ID, ShouldNotEqual, 0)
+				So(deployment.Pipeline[0].NextSteps[0].StepNumber, ShouldEqual, 3)
+				So(deployment.Pipeline[0].NextSteps[0].ParentStepNumber, ShouldEqual, 1)
+				So(deployment.Pipeline[0].NextSteps[0].TargetNamespace, ShouldEqual, "ppd")
+				So(deployment.Pipeline[0].NextSteps[0].AutomaticDeploy, ShouldBeFalse)
+				So(deployment.Pipeline[0].NextSteps[0].NextSteps, ShouldHaveLength, 1)
+				So(deployment.Pipeline[0].NextSteps[0].NextSteps[0].ID, ShouldBeGreaterThanOrEqualTo, 1)
+				So(deployment.Pipeline[0].NextSteps[0].NextSteps[0].StepNumber, ShouldEqual, 4)
+				So(deployment.Pipeline[0].NextSteps[0].NextSteps[0].ParentStepNumber, ShouldEqual, 3)
+				So(deployment.Pipeline[0].NextSteps[0].NextSteps[0].TargetNamespace, ShouldEqual, "prod")
+				So(deployment.Pipeline[0].NextSteps[0].NextSteps[0].AutomaticDeploy, ShouldBeFalse)
+				So(deployment.Pipeline[0].NextSteps[0].NextSteps[0].NextSteps, ShouldBeEmpty)
+				So(deployment.Pipeline[1].ID, ShouldNotEqual, 0)
+				So(deployment.Pipeline[1].StepNumber, ShouldEqual, 2)
+				So(deployment.Pipeline[1].ParentStepNumber, ShouldEqual, 0)
+				So(deployment.Pipeline[1].TargetNamespace, ShouldEqual, "int")
+				So(deployment.Pipeline[1].AutomaticDeploy, ShouldBeTrue)
+				So(deployment.Pipeline[1].NextSteps, ShouldHaveLength, 0)
 				So(deployment.Releases, ShouldHaveLength, 5)
-				So(deployment.Releases[0].ID, ShouldEqual, 1)
-				So(deployment.Releases[0].DeploymentID, ShouldEqual, 1)
+				So(deployment.Releases[0].ID, ShouldNotEqual, 0)
+				So(deployment.Releases[0].DeploymentID, ShouldNotEqual, 0)
 				So(deployment.Releases[0].Namespace, ShouldEqual, "dev")
 				So(deployment.Releases[0].Image, ShouldEqual, "testcorp/testimg")
 				So(deployment.Releases[0].ImageTag, ShouldEqual, "v0.0.1")
-				So(deployment.Releases[4].ID, ShouldEqual, 5)
-				So(deployment.Releases[4].DeploymentID, ShouldEqual, 1)
+				So(deployment.Releases[4].ID, ShouldNotEqual, 0)
+				So(deployment.Releases[4].DeploymentID, ShouldNotEqual, 0)
 				So(deployment.Releases[4].Namespace, ShouldEqual, "ppd")
 				So(deployment.Releases[4].Image, ShouldEqual, "testcorp/testimg")
 				So(deployment.Releases[4].ImageTag, ShouldEqual, "v0.0.1")
+			})
+		})
+	})
+}
+
+func Test_CreateDeployment(t *testing.T) {
+	Convey("Testing CreateDeployment()", t, FailureContinues, func() {
+		Convey("With a nil deployment", func() {
+			Convey("It should raise ErrInvalidDeployment", func() {
+				teardown(db)
+				err := pg.CreateDeployment(nil)
+				So(err, ShouldEqual, engine.ErrInvalidDeployment)
+			})
+		})
+		Convey("With an empty pipeline", func() {
+			Convey("It should raise ErrInvalidPipeline", func() {
+				teardown(db)
+				deployment := &engine.Deployment{
+					Name:          "unit test app",
+					ChartName:     "test",
+					RepositoryURL: "test",
+					Pipeline:      nil,
+				}
+				err := pg.CreateDeployment(deployment)
+				So(err, ShouldEqual, engine.ErrInvalidPipeline)
+			})
+		})
+		Convey("With a valid deployment", func() {
+			Convey("It should return a populated deployment", func() {
+				teardown(db)
+				deployment := &engine.Deployment{
+					Name:          "unit test app",
+					ChartName:     "test",
+					RepositoryURL: "http://test.com/charts",
+					Pipeline: []*engine.PipelineStep{
+						&engine.PipelineStep{
+							StepNumber:       1,
+							ParentStepNumber: 0,
+							TargetNamespace:  "dev",
+							AutomaticDeploy:  true,
+							NextSteps: []*engine.PipelineStep{
+								&engine.PipelineStep{
+									StepNumber:       3,
+									ParentStepNumber: 1,
+									TargetNamespace:  "ppd",
+									AutomaticDeploy:  false,
+									NextSteps: []*engine.PipelineStep{
+										&engine.PipelineStep{
+											StepNumber:       4,
+											ParentStepNumber: 3,
+											TargetNamespace:  "prod",
+											AutomaticDeploy:  false,
+										},
+									},
+								},
+							},
+						},
+						&engine.PipelineStep{
+							StepNumber:       2,
+							ParentStepNumber: 0,
+							TargetNamespace:  "int",
+							AutomaticDeploy:  true,
+						},
+					},
+				}
+				err := pg.CreateDeployment(deployment)
+				So(err, ShouldBeNil)
+				So(deployment.ID, ShouldBeGreaterThanOrEqualTo, 1)
 			})
 		})
 	})
