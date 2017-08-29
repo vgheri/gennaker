@@ -1,7 +1,8 @@
 package engine
 
 import (
-	"os"
+	"fmt"
+	"path"
 
 	"github.com/pkg/errors"
 	"github.com/vgheri/gennaker/helm"
@@ -23,7 +24,9 @@ func (e *engine) CreateDeployment(deployment *Deployment) (int, error) {
 		}
 	}
 	// 2. Retrieve the chart
-	pathToChart, err := helm.Fetch(repoName, deployment.ChartName, "", e.chartsDir)
+	saveDir := path.Join(e.chartsDir, deployment.Name)
+	fmt.Printf("Save dir: %s\n", saveDir)
+	pathToChart, err := helm.Fetch(repoName, deployment.ChartName, "", saveDir)
 	if err != nil {
 		return 0, errors.Wrap(err, "Fetch chart failed")
 	}
@@ -38,11 +41,11 @@ func (e *engine) CreateDeployment(deployment *Deployment) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	// 5. Remove the directory with the downloaded chart
-	err = os.RemoveAll(pathToChart)
-	if err != nil {
-		return 0, errors.Wrap(err, "Cannot remove chart folder")
-	}
+	// 5. Remove the directory with the downloaded chart --> We need the chart so do not remove it
+	// err = os.RemoveAll(pathToChart)
+	// if err != nil {
+	// 	return 0, errors.Wrap(err, "Cannot remove chart folder")
+	// }
 	return deployment.ID, nil
 }
 
@@ -53,6 +56,6 @@ func (e *engine) ListDeployments(limit, offset int) ([]*Deployment, error) {
 func (e *engine) ListDeploymentsWithStatus(limit, offset int) ([]*Deployment, error) {
 	return nil, nil
 }
-func (e *engine) GetDeployment(id int) (*Deployment, error) {
+func (e *engine) GetDeployment(name string) (*Deployment, error) {
 	return nil, nil
 }
