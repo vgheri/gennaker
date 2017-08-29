@@ -41,6 +41,7 @@ func (h *Handler) CreateDeploymentHandler(w http.ResponseWriter, r *http.Request
 		&engine.Deployment{
 			Name:          reqBody.Name,
 			ChartName:     reqBody.ChartName,
+			ChartVersion:  reqBody.ChartVersion,
 			RepositoryURL: reqBody.RepositoryURL,
 		})
 	if err != nil {
@@ -52,6 +53,41 @@ func (h *Handler) CreateDeploymentHandler(w http.ResponseWriter, r *http.Request
 
 	// Encode response
 	respBody := CreateDeploymentResponse{ID: id}
+	err = json.NewEncoder(w).Encode(respBody)
+	if err != nil {
+		writeJSONError(w, err.Error(),
+			http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+// NewDeploymentReleaseNotificationHandler manages the workflow triggered by
+// the notification of a new release for a registered deployment
+func (h *Handler) NewDeploymentReleaseNotificationHandler(w http.ResponseWriter, r *http.Request) {
+	// Decode request
+	var reqBody NewDeploymentReleaseNotificationRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&reqBody); err != nil {
+		writeJSONError(w, err.Error(), 422)
+		return
+	}
+	// Prepare business call
+	reports, err := h.deploymentEngine.HandleNewReleaseNotification(
+		&engine.ReleaseNotification{
+			DeploymentName: reqBody.DeploymentName,
+			ImageTag:       reqBody.ImageTag,
+			ReleaseValues:  reqBody.ReleaseValues,
+		})
+	if err != nil {
+		// TODO: Get the status code from map of errors
+		writeJSONError(w, err.Error(),
+			http.StatusBadRequest)
+		return
+	}
+
+	// Encode response
+	respBody := NewDeploymentReleaseNotificationResponse{Reports: reports}
 	err = json.NewEncoder(w).Encode(respBody)
 	if err != nil {
 		writeJSONError(w, err.Error(),

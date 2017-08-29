@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -16,6 +17,7 @@ type Deployment struct {
 	ID            int             `json:"id"`
 	Name          string          `json:"name"`
 	ChartName     string          `json:"chart_name"`
+	ChartVersion  string          `json:"chart_version"`
 	RepositoryURL string          `json:"repository_url"`
 	Releases      []*Release      `json:"releases"`
 	Pipeline      []*PipelineStep `json:"pipeline"`
@@ -25,12 +27,16 @@ type Deployment struct {
 
 //Release models a versioned release of the content of an helm chart
 type Release struct {
-	ID           int       `json:"id"`
-	DeploymentID int       `json:"deployment_id"`
-	Date         time.Time `json:"date"`
-	Namespace    string    `json:"namespace"`
-	Image        string    `json:"image"`
-	ImageTag     string    `json:"image_tag"`
+	ID           int                    `json:"id"`
+	Name         string                 `json:"name"`
+	DeploymentID int                    `json:"deployment_id"`
+	ImageTag     string                 `json:"image_tag"`
+	Date         time.Time              `json:"date"`
+	Namespace    string                 `json:"namespace"`
+	Values       string                 `json:"values"`
+	Chart        string                 `json:"chart"`
+	ChartVersion string                 `json:"chart_version"`
+	Status       GennakerReleaseOutcome `json:"status"`
 }
 
 //PipelineStep models a specific step in the deployment lifecycle
@@ -44,12 +50,19 @@ type PipelineStep struct {
 	NextSteps        []*PipelineStep `json:"next_steps"`
 }
 
+type ReleaseNotification struct {
+	DeploymentName string
+	ImageTag       string
+	ReleaseValues  string
+}
+
 //DeploymentService describes all functionalities exposed by gennaker
 type DeploymentEngine interface {
 	ListDeployments(limit, offset int) ([]*Deployment, error)
 	ListDeploymentsWithStatus(limit, offset int) ([]*Deployment, error)
-	GetDeployment(id int) (*Deployment, error)
+	GetDeployment(name string) (*Deployment, error)
 	CreateDeployment(deployment *Deployment) (int, error)
+	HandleNewReleaseNotification(notification *ReleaseNotification) ([]string, error)
 }
 
 //DeploymentRepository contains all necessary database support methods
@@ -57,8 +70,9 @@ type DeploymentEngine interface {
 type DeploymentRepository interface {
 	ListDeployments(limit, offset int) ([]*Deployment, error)
 	ListDeploymentsWithStatus(limit, offset int) ([]*Deployment, error)
-	GetDeployment(id int) (*Deployment, error)
+	GetDeployment(name string) (*Deployment, error)
 	CreateDeployment(deployment *Deployment) error
+	CreateRelease(release *Release) (int, error)
 }
 
 func (d *Deployment) valid() error {
@@ -75,6 +89,20 @@ func (d *Deployment) valid() error {
 		if d.Pipeline == nil || len(d.Pipeline) == 0 {
 			return errors.New("Invalid pipeline")
 		}
+	}
+	return nil
+}
+
+func (r *ReleaseNotification) valid() error {
+	if len(strings.TrimSpace(r.DeploymentName)) == 0 {
+		return errors.New("Deployment name cannot be empty")
+	}
+	if len(strings.TrimSpace(r.ImageTag)) == 0 {
+		return errors.New("ImageTag cannot be empty")
+	}
+	if len(strings.TrimSpace(r.ReleaseValues)) != 0 && // TODO use regex
+		!strings.Contains(r.ReleaseValues, "=") {
+		return errors.New("Invalid ReleaseValues")
 	}
 	return nil
 }

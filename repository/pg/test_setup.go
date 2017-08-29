@@ -9,31 +9,33 @@ import (
 
 var firstTestDeploymentID int
 var secondTestDeploymentID int
+var firstTestDeploymentName = "test app"
+var secondTestDeploymentName = "test app 2"
 
 func insertDummyData(db *sql.DB) {
 	queries := []string{
 		//Deployment 1
-		"INSERT INTO deployment(name, chart, repository_url) VALUES('test app', 'test-chart', 'https://test.com/helm/charts') RETURNING id",
+		"INSERT INTO deployment(name, chart, repository_url) VALUES('" + firstTestDeploymentName + "', 'test-chart', 'https://test.com/helm/charts') RETURNING id",
 		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(1, NULL, (SELECT id FROM deployment where chart = 'test-chart'), 'dev', true) RETURNING id",
 		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(2, NULL, (SELECT id FROM deployment where chart = 'test-chart'), 'int', true) RETURNING id",
 		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(3, 1, (SELECT id FROM deployment where chart = 'test-chart'), 'ppd', false) RETURNING id",
 		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(4, 3, (SELECT id FROM deployment where chart = 'test-chart'), 'prod', false) RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'dev', 'testcorp/testimg', 'v0.0.1') RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'int', 'testcorp/testimg', 'v0.0.1') RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'dev', 'testcorp/testimg', 'v0.0.2') RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'int', 'testcorp/testimg', 'v0.0.2') RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-chart'), 'ppd', 'testcorp/testimg', 'v0.0.1') RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-panda', (SELECT id FROM deployment where chart = 'test-chart'), '0.0.1', 'dev', 'a=1', 'test-chart', 1) RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-panda', (SELECT id FROM deployment where chart = 'test-chart'), '0.0.1', 'int', 'a=1', 'test-chart', 1) RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-panda', (SELECT id FROM deployment where chart = 'test-chart'), '0.0.2', 'dev', 'a=1', 'test-chart', 1) RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-panda', (SELECT id FROM deployment where chart = 'test-chart'), '0.0.2', 'int', 'a=1', 'test-chart', 1) RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-panda', (SELECT id FROM deployment where chart = 'test-chart'), '0.0.1', 'ppd', 'a=1', 'test-chart', 1) RETURNING id",
 		//Deployment 2
-		"INSERT INTO deployment(name, chart, repository_url) VALUES('test app 2', 'test-new-chart', 'https://test.com/helm/charts') RETURNING id",
+		"INSERT INTO deployment(name, chart, repository_url) VALUES('" + secondTestDeploymentName + "', 'test-new-chart', 'https://test.com/helm/charts') RETURNING id",
 		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(1, NULL, (SELECT id FROM deployment where chart = 'test-new-chart'), 'dev', true) RETURNING id",
 		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(2, NULL, (SELECT id FROM deployment where chart = 'test-new-chart'), 'int', true) RETURNING id",
 		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(3, 1, (SELECT id FROM deployment where chart = 'test-new-chart'), 'ppd', false) RETURNING id",
 		"INSERT INTO pipeline_step(step_number, parent_step_number, deployment_id, target_namespace, auto_deploy) VALUES(4, 3, (SELECT id FROM deployment where chart = 'test-new-chart'), 'prod', false) RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'dev', 'testcorp/testimg', 'v0.0.1') RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'int', 'testcorp/testimg', 'v0.0.1') RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'dev', 'testcorp/testimg', 'v0.0.2') RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'int', 'testcorp/testimg', 'v0.0.2') RETURNING id",
-		"INSERT INTO release(deployment_id, namespace, image, tag) VALUES((SELECT id FROM deployment where chart = 'test-new-chart'), 'ppd', 'testcorp/testimg', 'v0.0.1') RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-zebra', (SELECT id FROM deployment where chart = 'test-new-chart'), '0.0.1', 'dev', 'a=1', 'test-new-chart', 1) RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-zebra', (SELECT id FROM deployment where chart = 'test-new-chart'), '0.0.1', 'int', 'a=1', 'test-new-chart', 1) RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-zebra', (SELECT id FROM deployment where chart = 'test-new-chart'), '0.0.2', 'dev', 'a=1', 'test-new-chart', 1) RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-zebra', (SELECT id FROM deployment where chart = 'test-new-chart'), '0.0.2', 'int', 'a=1', 'test-new-chart', 1) RETURNING id",
+		"INSERT INTO release(name, deployment_id, image_tag, namespace, values, chart, status) VALUES('happy-zebra', (SELECT id FROM deployment where chart = 'test-new-chart'), '0.0.1', 'ppd', 'a=1', 'test-new-chart', 1) RETURNING id",
 	}
 	for i, q := range queries {
 		row := db.QueryRow(q)

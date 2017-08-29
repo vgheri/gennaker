@@ -70,7 +70,7 @@ func TestCreateDeploymentHandler(t *testing.T) {
 			body := bytes.NewReader(bodyMarshaled)
 			req, err := http.NewRequest("POST", "localhost:8080/api/v1/deployment", body)
 			if err != nil {
-				t.Fatalf("could not created request: %v", err)
+				t.Fatalf("could not create request: %v", err)
 			}
 			rec := httptest.NewRecorder()
 			testhandler.CreateDeploymentHandler(rec, req)
@@ -101,6 +101,55 @@ func TestCreateDeploymentHandler(t *testing.T) {
 			_, err = strconv.Atoi(string(bytes.TrimSpace(b)))
 			if err != nil {
 				t.Fatalf("expected an integer; got %s", b)
+			}
+		})
+	}
+}
+
+func TestNewDeploymentReleaseNotificationHandler(t *testing.T) {
+	tt := []struct {
+		name          string
+		deployName    string
+		imageTag      string
+		releaseValues string
+		shouldErr     bool
+	}{
+		{name: "Empty deployment name", deployName: "", imageTag: "0.0.1", shouldErr: true},
+		{name: "Empty image tag", deployName: "test", imageTag: "", shouldErr: true},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			bodyValue := NewDeploymentReleaseNotificationRequest{DeploymentName: tc.deployName, ImageTag: tc.imageTag, ReleaseValues: tc.releaseValues}
+			bodyMarshaled, _ := json.Marshal(bodyValue)
+			body := bytes.NewReader(bodyMarshaled)
+			req, err := http.NewRequest("POST", "/api/v1/deployment/newrelease", body)
+			if err != nil {
+				t.Fatalf("could not create request: %v", err)
+			}
+			rec := httptest.NewRecorder()
+			testhandler.NewDeploymentReleaseNotificationHandler(rec, req)
+
+			res := rec.Result()
+			defer res.Body.Close()
+
+			_, err = ioutil.ReadAll(res.Body)
+			if err != nil {
+				t.Fatalf("could not read response: %v", err)
+			}
+
+			if tc.shouldErr {
+				// do something
+				if res.StatusCode != http.StatusBadRequest {
+					t.Errorf("expected status Bad Request; got %v", res.StatusCode)
+				}
+				// if msg := string(bytes.TrimSpace(b)); msg != tc.err {
+				// 	t.Errorf("expected message %q; got %q", tc.err, msg)
+				// }
+				return
+			}
+
+			if res.StatusCode != http.StatusOK {
+				t.Errorf("expected status OK; got %v", res.Status)
 			}
 		})
 	}

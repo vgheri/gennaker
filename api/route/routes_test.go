@@ -69,7 +69,7 @@ func TestCreateDeploymentRouting(t *testing.T) {
 
 	res, err = http.Post(fmt.Sprintf("%s/api/v1/deployment", server.URL), "application/json", body)
 	if err != nil {
-		t.Fatalf("scould not POST request to /vapi/v1/deployment, err: %v", err)
+		t.Fatalf("could not POST request to /vapi/v1/deployment, err: %v", err)
 	}
 	if res.StatusCode != http.StatusOK {
 		t.Errorf("expected status OK; got %v", res.Status)
@@ -83,5 +83,18 @@ func TestCreateDeploymentRouting(t *testing.T) {
 	_, err = strconv.Atoi(string(bytes.TrimSpace(b)))
 	if err != nil {
 		t.Fatalf("expected an integer; got %s", b)
+	}
+}
+
+func TestNewDeploymentReleaseNotificationRouting(t *testing.T) {
+	bodyValue := handler.NewDeploymentReleaseNotificationRequest{DeploymentName: "a", ImageTag: "b", ReleaseValues: ""}
+	bodyMarshaled, _ := json.Marshal(bodyValue)
+	body := bytes.NewReader(bodyMarshaled)
+	res, err := http.Post(fmt.Sprintf("%s/vapi/v1/deployment/newrelease", server.URL), "application/json", body)
+	if err == nil {
+		t.Fatal("sould not have been able to POST request to /api/v1/deployment/newrelease")
+	}
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("expected status NotFound; got %v", res.Status)
 	}
 }

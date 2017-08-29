@@ -11,3 +11,5 @@ var ErrInvalidDeployment error = fmt.Errorf("Invalid deployment")
 // TODO replace this error with errors.Wrap(ErrInvalidDeployment, "bla bla")
 //ErrInvalidPipeline is returned when an invalid pipeline is specified
 var ErrInvalidPipeline error = fmt.Errorf("Invalid pipeline")
+
+var ErrInvalidReleaseNotification error = fmt.Errorf("Invalid release notification")

@@ -2,6 +2,7 @@ package pg
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/vgheri/gennaker/engine"
@@ -48,15 +49,17 @@ func (r *pgRepository) ListDeploymentsWithStatus(limit, offset int) ([]*engine.D
 	return nil, nil
 }
 
-func (r *pgRepository) GetDeployment(id int) (*engine.Deployment, error) {
-	query := `SELECT name, chart, repository_url, creation_date, last_update
+func (r *pgRepository) GetDeployment(name string) (*engine.Deployment, error) {
+	query := `SELECT id, chart, chart_version, repository_url, creation_date, last_update
   FROM deployment
-  WHERE id = $1`
+  WHERE name = $1`
 
-	row := r.db.QueryRow(query, id)
-	var name, chart, repositoryURL string
+	row := r.db.QueryRow(query, name)
+	var id int
+	var chart, repositoryURL string
+	var chartVersion sql.NullString
 	var creationDate, lastUpdate time.Time
-	err := row.Scan(&name, &chart, &repositoryURL, &creationDate,
+	err := row.Scan(&id, &chart, &chartVersion, &repositoryURL, &creationDate,
 		&lastUpdate)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -65,31 +68,37 @@ func (r *pgRepository) GetDeployment(id int) (*engine.Deployment, error) {
 		return nil, err
 	}
 
-	query = `SELECT id, timestamp, namespace, image, tag
+	query = `SELECT id, name, image_tag, timestamp, namespace, values, chart, chart_version, status
 	FROM release
 	WHERE deployment_id = $1
-	ORDER BY timestamp asc;`
+	ORDER BY timestamp desc;`
 	rows, err := r.db.Query(query, id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	releases := []*engine.Release{}
-	for rows.Next() {
+	for rows.Next() { // TODO: replace with call to getRelease
 		var releaseID int
 		var timestamp time.Time
-		var namespace, image, tag string
-		err = rows.Scan(&releaseID, &timestamp, &namespace, &image, &tag)
+		var imageTag, namespace, chart, name string
+		var values, chartVersion sql.NullString
+		var status uint8
+		err = rows.Scan(&releaseID, &name, &imageTag, &timestamp, &namespace, &values, &chart, &chartVersion, &status)
 		if err != nil {
 			return nil, err
 		}
 		release := &engine.Release{
 			ID:           releaseID,
+			Name:         name,
+			ImageTag:     imageTag,
 			DeploymentID: id,
 			Date:         timestamp,
 			Namespace:    namespace,
-			Image:        image,
-			ImageTag:     tag,
+			Values:       values.String,
+			Chart:        chart,
+			ChartVersion: chartVersion.String,
+			Status:       engine.GennakerReleaseOutcome(status),
 		}
 		releases = append(releases, release)
 	}
@@ -155,6 +164,7 @@ func (r *pgRepository) GetDeployment(id int) (*engine.Deployment, error) {
 		ID:            id,
 		Name:          name,
 		ChartName:     chart,
+		ChartVersion:  chartVersion.String,
 		RepositoryURL: repositoryURL,
 		CreationDate:  creationDate,
 		LastUpdate:    lastUpdate,
@@ -168,15 +178,20 @@ func (r *pgRepository) CreateDeployment(deployment *engine.Deployment) error {
 	if deployment == nil {
 		return engine.ErrInvalidDeployment
 	}
+	var chartVersion sql.NullString
+	if len(strings.TrimSpace(deployment.ChartVersion)) != 0 {
+		chartVersion.Valid = true
+		chartVersion.String = deployment.ChartVersion
+	}
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	// Create the deployment
-	query := `INSERT INTO deployment(name, chart, repository_url)
-	VALUES($1, $2, $3) RETURNING id, creation_date, last_update`
-	row := r.db.QueryRow(query, deployment.Name, deployment.ChartName, deployment.RepositoryURL)
+	query := `INSERT INTO deployment(name, chart, chart_version, repository_url)
+	VALUES($1, $2, $3, $4) RETURNING id, creation_date, last_update`
+	row := r.db.QueryRow(query, deployment.Name, deployment.ChartName, chartVersion, deployment.RepositoryURL)
 	var id int
 	var creationDate, lastUpdate time.Time
 	err = row.Scan(&id, &creationDate, &lastUpdate)
