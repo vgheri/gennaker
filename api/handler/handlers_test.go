@@ -205,3 +205,47 @@ func TestPromoteReleaseHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestGetDeploymentHandler(t *testing.T) {
+	tt := []struct {
+		name       string
+		deployName string
+		shouldErr  bool
+	}{
+		{name: "Empty deployment name", deployName: "", shouldErr: true},
+		{name: "Non existent deployment name should return 404", deployName: utils.GenerateRandomString(10), shouldErr: true},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", fmt.Sprintf("/api/v1/deployment/%s/", tc.deployName), nil)
+			if err != nil {
+				t.Fatalf("could not create request: %v", err)
+			}
+			rec := httptest.NewRecorder()
+			testhandler.GetDeployment(rec, req)
+
+			res := rec.Result()
+			defer res.Body.Close()
+
+			_, err = ioutil.ReadAll(res.Body)
+			if err != nil {
+				t.Fatalf("could not read response: %v", err)
+			}
+
+			if tc.shouldErr {
+				// do something
+				if res.StatusCode != http.StatusBadRequest {
+					t.Errorf("expected status Bad Request; got %v", res.StatusCode)
+				}
+				// if msg := string(bytes.TrimSpace(b)); msg != tc.err {
+				// 	t.Errorf("expected message %q; got %q", tc.err, msg)
+				// }
+				return
+			}
+
+			if res.StatusCode != http.StatusOK {
+				t.Errorf("expected status OK; got %v", res.Status)
+			}
+		})
+	}
+}

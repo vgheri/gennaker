@@ -74,3 +74,11 @@ func Test_CreateDeployment(t *testing.T) {
 		t.Fatalf("Expected error Build pipeline failed, got %v", err)
 	}
 }
+
+func Test_GetDeployment(t *testing.T) {
+	invalidDeploymentName := "   "
+	_, err := testEngine.GetDeployment(invalidDeploymentName)
+	if !strings.HasPrefix(err.Error(), "A non empty deployment name is mandatory") {
+		t.Fatalf("Expected invalid deployment name, got nothing")
+	}
+}
