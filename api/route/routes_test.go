@@ -92,7 +92,20 @@ func TestNewDeploymentReleaseNotificationRouting(t *testing.T) {
 	body := bytes.NewReader(bodyMarshaled)
 	res, err := http.Post(fmt.Sprintf("%s/vapi/v1/deployment/newrelease", server.URL), "application/json", body)
 	if err == nil {
-		t.Fatal("sould not have been able to POST request to /api/v1/deployment/newrelease")
+		t.Fatal("sould not have been able to POST request to /vapi/v1/deployment/newrelease")
+	}
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("expected status NotFound; got %v", res.Status)
+	}
+}
+
+func TestPromoteReleaseRouting(t *testing.T) {
+	bodyValue := handler.PromoteReleaseRequest{FromNamespace: "b", ReleaseValues: ""}
+	bodyMarshaled, _ := json.Marshal(bodyValue)
+	body := bytes.NewReader(bodyMarshaled)
+	res, err := http.Post(fmt.Sprintf("%s/vapi/v1/deployment/a/release/promote", server.URL), "application/json", body)
+	if err == nil {
+		t.Fatal("sould not have been able to POST request to /vapi/v1/deployment/a/release/promote")
 	}
 	if res.StatusCode != http.StatusNotFound {
 		t.Errorf("expected status NotFound; got %v", res.Status)

@@ -1,6 +1,6 @@
 package handler
 
-// POST /api/v1/deployment
+// CreateDeploymentRequest POST /api/v1/deployment
 // CreateDeployment endpoint
 type CreateDeploymentRequest struct {
 	Name          string `json:"name"`
@@ -13,7 +13,7 @@ type CreateDeploymentResponse struct {
 	ID int `json:"id"` // TODO: remove as it's useless
 }
 
-// POST /api/v1/deployment/release
+// NewDeploymentReleaseNotificationRequest POST /api/v1/deployment/release
 // NewRelease endpoint
 type NewDeploymentReleaseNotificationRequest struct {
 	DeploymentName string `json:"deployment_name"`
@@ -22,5 +22,15 @@ type NewDeploymentReleaseNotificationRequest struct {
 }
 
 type NewDeploymentReleaseNotificationResponse struct {
+	Reports []string `json:"reports"`
+}
+
+// PromoteReleaseRequest POST /api/v1/deployment/{name}/release/promote
+type PromoteReleaseRequest struct {
+	FromNamespace string `json:"from_namespace"`
+	ReleaseValues string `json:"release_values"`
+}
+
+type PromoteReleaseResponse struct {
 	Reports []string `json:"reports"`
 }

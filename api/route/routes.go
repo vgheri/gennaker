@@ -31,5 +31,11 @@ func setupRoutes(handler *handler.Handler) Routes {
 			Pattern:     "/api/v1/deployment/newrelease",
 			HandlerFunc: handler.NewDeploymentReleaseNotificationHandler,
 		},
+		&Route{
+			Name:        "PromoteRelease",
+			Method:      "POST",
+			Pattern:     "/api/v1/deployment/{name}/release/promote",
+			HandlerFunc: handler.PromoteReleaseHandler,
+		},
 	}
 }

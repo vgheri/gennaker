@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -123,6 +124,56 @@ func TestNewDeploymentReleaseNotificationHandler(t *testing.T) {
 			bodyMarshaled, _ := json.Marshal(bodyValue)
 			body := bytes.NewReader(bodyMarshaled)
 			req, err := http.NewRequest("POST", "/api/v1/deployment/newrelease", body)
+			if err != nil {
+				t.Fatalf("could not create request: %v", err)
+			}
+			rec := httptest.NewRecorder()
+			testhandler.NewDeploymentReleaseNotificationHandler(rec, req)
+
+			res := rec.Result()
+			defer res.Body.Close()
+
+			_, err = ioutil.ReadAll(res.Body)
+			if err != nil {
+				t.Fatalf("could not read response: %v", err)
+			}
+
+			if tc.shouldErr {
+				// do something
+				if res.StatusCode != http.StatusBadRequest {
+					t.Errorf("expected status Bad Request; got %v", res.StatusCode)
+				}
+				// if msg := string(bytes.TrimSpace(b)); msg != tc.err {
+				// 	t.Errorf("expected message %q; got %q", tc.err, msg)
+				// }
+				return
+			}
+
+			if res.StatusCode != http.StatusOK {
+				t.Errorf("expected status OK; got %v", res.Status)
+			}
+		})
+	}
+}
+
+func TestPromoteReleaseHandler(t *testing.T) {
+	tt := []struct {
+		name          string
+		deployName    string
+		namespace     string
+		releaseValues string
+		shouldErr     bool
+	}{
+		{name: "Empty deployment name", deployName: "", namespace: "int", shouldErr: true},
+		{name: "Empty namespace", deployName: "test", namespace: "", shouldErr: true},
+		{name: "Invalid release values", deployName: "test", namespace: "int", releaseValues: "abc", shouldErr: true},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			bodyValue := PromoteReleaseRequest{FromNamespace: tc.namespace, ReleaseValues: tc.releaseValues}
+			bodyMarshaled, _ := json.Marshal(bodyValue)
+			body := bytes.NewReader(bodyMarshaled)
+			req, err := http.NewRequest("POST", fmt.Sprintf("/api/v1/deployment/%s/release/promote", tc.deployName), body)
 			if err != nil {
 				t.Fatalf("could not create request: %v", err)
 			}
