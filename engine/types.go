@@ -56,6 +56,12 @@ type ReleaseNotification struct {
 	ReleaseValues  string
 }
 
+type PromoteRequest struct {
+	DeploymentName string
+	FromNamespace  string
+	ReleaseValues  string
+}
+
 //DeploymentService describes all functionalities exposed by gennaker
 type DeploymentEngine interface {
 	ListDeployments(limit, offset int) ([]*Deployment, error)
@@ -63,6 +69,7 @@ type DeploymentEngine interface {
 	GetDeployment(name string) (*Deployment, error)
 	CreateDeployment(deployment *Deployment) (int, error)
 	HandleNewReleaseNotification(notification *ReleaseNotification) ([]string, error)
+	PromoteRelease(request *PromoteRequest) ([]string, error)
 }
 
 //DeploymentRepository contains all necessary database support methods
@@ -99,6 +106,20 @@ func (r *ReleaseNotification) valid() error {
 	}
 	if len(strings.TrimSpace(r.ImageTag)) == 0 {
 		return errors.New("ImageTag cannot be empty")
+	}
+	if len(strings.TrimSpace(r.ReleaseValues)) != 0 && // TODO use regex
+		!strings.Contains(r.ReleaseValues, "=") {
+		return errors.New("Invalid ReleaseValues")
+	}
+	return nil
+}
+
+func (r *PromoteRequest) valid() error {
+	if len(strings.TrimSpace(r.DeploymentName)) == 0 {
+		return errors.New("Deployment name cannot be empty")
+	}
+	if len(strings.TrimSpace(r.FromNamespace)) == 0 {
+		return errors.New("FromNamespace cannot be empty")
 	}
 	if len(strings.TrimSpace(r.ReleaseValues)) != 0 && // TODO use regex
 		!strings.Contains(r.ReleaseValues, "=") {

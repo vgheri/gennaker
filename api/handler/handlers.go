@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/vgheri/gennaker/engine"
 )
 
@@ -88,6 +89,44 @@ func (h *Handler) NewDeploymentReleaseNotificationHandler(w http.ResponseWriter,
 
 	// Encode response
 	respBody := NewDeploymentReleaseNotificationResponse{Reports: reports}
+	err = json.NewEncoder(w).Encode(respBody)
+	if err != nil {
+		writeJSONError(w, err.Error(),
+			http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+// PromoteReleaseHandler manages the workflow triggered by
+// the promote request
+func (h *Handler) PromoteReleaseHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	deploymentName := vars["name"]
+	// Decode request
+	var reqBody PromoteReleaseRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&reqBody); err != nil {
+		writeJSONError(w, err.Error(), 422)
+		return
+	}
+
+	// Prepare business call
+	reports, err := h.deploymentEngine.PromoteRelease(
+		&engine.PromoteRequest{
+			DeploymentName: deploymentName,
+			FromNamespace:  reqBody.FromNamespace,
+			ReleaseValues:  reqBody.ReleaseValues,
+		})
+	if err != nil {
+		// TODO: Get the status code from map of errors
+		writeJSONError(w, err.Error(),
+			http.StatusBadRequest)
+		return
+	}
+
+	// Encode response
+	respBody := PromoteReleaseResponse{Reports: reports}
 	err = json.NewEncoder(w).Encode(respBody)
 	if err != nil {
 		writeJSONError(w, err.Error(),

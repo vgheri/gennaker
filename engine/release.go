@@ -35,12 +35,13 @@ func (e *engine) HandleNewReleaseNotification(notification *ReleaseNotification)
 	if err != nil {
 		return nil, err
 	}
+	repoName, err := helm.GetRepositoryName(d.RepositoryURL)
+	if err != nil {
+		return reports, errors.Wrap(err, fmt.Sprintf("Cannot get repository name for url %s", d.RepositoryURL))
+	}
 	for _, step := range d.Pipeline {
 		releaseNameForNamespace := getReleaseName(d, step)
-		repoName, err := helm.GetRepositoryName(d.RepositoryURL)
-		if err != nil {
-			return reports, errors.Wrap(err, fmt.Sprintf("Cannot get repository name for url %s", d.RepositoryURL))
-		}
+
 		// Namespace dependent configuration values are stored in $namespace-values.yml
 		// inside the chart located in engine.chartsDir
 		namespaceValuesFilePath := getNamespaceValuesFilePath(e.chartsDir, d.Name, d.ChartName, step.TargetNamespace)
@@ -52,8 +53,53 @@ func (e *engine) HandleNewReleaseNotification(notification *ReleaseNotification)
 				fmt.Sprintf("Failed at installing or upgrading release %s in namespace %s", releaseNameForNamespace, step.TargetNamespace))
 		}
 		reports = append(reports, report)
-		go finalizeRelease(e.db, d, step.TargetNamespace, releaseNameForNamespace, notification)
+		go finalizeRelease(e.db, d, step.TargetNamespace, releaseNameForNamespace,
+			notification.ImageTag, notification.ReleaseValues)
 	}
+	return reports, nil
+}
+
+func (e *engine) PromoteRelease(request *PromoteRequest) ([]string, error) {
+	if request == nil {
+		return nil, ErrInvalidReleaseNotification
+	}
+	if err := request.valid(); err != nil {
+		return nil, errors.Wrap(err, "Promote request is invalid")
+	}
+	var reports []string
+	d, err := e.db.GetDeployment(request.DeploymentName) // TODO: use e.GetDeployment when it's done
+	if err != nil {
+		return nil, errors.Wrap(err, "Cannot get deployment")
+	}
+	repoName, err := helm.GetRepositoryName(d.RepositoryURL)
+	if err != nil {
+		return reports, errors.Wrap(err, fmt.Sprintf("Cannot get repository name for url %s", d.RepositoryURL))
+	}
+	pipeline := getPipelineForNamespace(request.FromNamespace, d.Pipeline)
+	if len(pipeline) == 0 {
+		return nil, errors.Errorf("Cannot promote from namespace %s", request.FromNamespace)
+	}
+	lastRelease := getLastReleaseForNamespace(request.FromNamespace, d)
+	if lastRelease == nil {
+		return nil, errors.Errorf("Cannot promote: no release found for namespace %s", request.FromNamespace)
+	}
+	for _, step := range pipeline {
+		releaseNameForNamespace := generateReleaseName(d.Name, request.FromNamespace)
+		// Namespace dependent configuration values are stored in $namespace-values.yml
+		// inside the chart located in engine.chartsDir
+		namespaceValuesFilePath := getNamespaceValuesFilePath(e.chartsDir, d.Name, d.ChartName, request.FromNamespace)
+		releaseValues := buildReleaseValues(lastRelease.ImageTag, request.ReleaseValues)
+		report, err := helm.InstallOrUpgrade(releaseNameForNamespace, step.TargetNamespace,
+			repoName, d.ChartName, namespaceValuesFilePath, releaseValues)
+		if err != nil {
+			return reports, errors.Wrap(err,
+				fmt.Sprintf("Failed at installing or upgrading release %s in namespace %s", releaseNameForNamespace, step.TargetNamespace))
+		}
+		reports = append(reports, report)
+		go finalizeRelease(e.db, d, step.TargetNamespace, releaseNameForNamespace,
+			lastRelease.ImageTag, request.ReleaseValues)
+	}
+
 	return reports, nil
 }
 
@@ -94,7 +140,7 @@ func generateReleaseName(deploymentName, namespace string) string {
 
 // finalizeRelease loops for 5 minutes waiting to have a status != Unknown
 // to persist release status in db
-func finalizeRelease(repository DeploymentRepository, deployment *Deployment, namespace, releaseName string, notification *ReleaseNotification) {
+func finalizeRelease(repository DeploymentRepository, deployment *Deployment, namespace, releaseName, imageTag, releaseValues string) {
 	// TODO
 	// loop for 5 minutes for status to report either success or failure
 	// once it's done, update the DB
@@ -128,14 +174,34 @@ func finalizeRelease(repository DeploymentRepository, deployment *Deployment, na
 	release := &Release{
 		Name:         releaseName,
 		DeploymentID: deployment.ID,
-		ImageTag:     notification.ImageTag,
+		ImageTag:     imageTag,
 		Date:         time.Now(),
 		Namespace:    namespace,
-		Values:       notification.ReleaseValues,
+		Values:       releaseValues,
 		Chart:        deployment.ChartName,
 		ChartVersion: deployment.ChartVersion,
 		Status:       releaseOutcome,
 	}
 	// TODO: log error
 	_, _ = repository.CreateRelease(release)
+}
+
+func getPipelineForNamespace(namespace string, pipeline []*PipelineStep) []*PipelineStep {
+	for _, step := range pipeline {
+		if step.TargetNamespace == namespace {
+			return step.NextSteps
+		} else {
+			return getPipelineForNamespace(namespace, step.NextSteps)
+		}
+	}
+	return nil
+}
+
+func getLastReleaseForNamespace(namespace string, d *Deployment) *Release {
+	for _, r := range d.Releases {
+		if r.Namespace == namespace {
+			return r
+		}
+	}
+	return nil
 }
