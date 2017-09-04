@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/vgheri/gennaker/helm"
@@ -56,6 +57,14 @@ func (e *engine) ListDeployments(limit, offset int) ([]*Deployment, error) {
 func (e *engine) ListDeploymentsWithStatus(limit, offset int) ([]*Deployment, error) {
 	return nil, nil
 }
+
 func (e *engine) GetDeployment(name string) (*Deployment, error) {
-	return nil, nil
+	if len(strings.TrimSpace(name)) == 0 {
+		return nil, errors.New("A non empty deployment name is mandatory")
+	}
+	d, err := e.db.GetDeployment(name)
+	if err != nil {
+		return nil, errors.Wrap(err, "Cannot get deployment")
+	}
+	return d, nil
 }

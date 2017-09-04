@@ -136,6 +136,31 @@ func (h *Handler) PromoteReleaseHandler(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusCreated)
 }
 
+// GetDeployment gets the desired deployment
+func (h *Handler) GetDeployment(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	deploymentName := vars["name"]
+
+	// Prepare business call
+	d, err := h.deploymentEngine.GetDeployment(deploymentName)
+	if err != nil {
+		// TODO: Get the status code from map of errors
+		writeJSONError(w, err.Error(),
+			http.StatusBadRequest)
+		return
+	}
+
+	// Encode response
+	respBody := GetDeploymentResponse{Deployment: d}
+	err = json.NewEncoder(w).Encode(respBody)
+	if err != nil {
+		writeJSONError(w, err.Error(),
+			http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
 func writeJSONError(w http.ResponseWriter, errorMsg string, httpErrorCode int) {
 	w.Header().Set("Content-Type", mimeTypeJSON)
 	w.WriteHeader(httpErrorCode)

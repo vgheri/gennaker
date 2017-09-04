@@ -1,5 +1,7 @@
 package handler
 
+import "github.com/vgheri/gennaker/engine"
+
 // CreateDeploymentRequest POST /api/v1/deployment
 // CreateDeployment endpoint
 type CreateDeploymentRequest struct {
@@ -33,4 +35,8 @@ type PromoteReleaseRequest struct {
 
 type PromoteReleaseResponse struct {
 	Reports []string `json:"reports"`
+}
+
+type GetDeploymentResponse struct {
+	Deployment *engine.Deployment
 }

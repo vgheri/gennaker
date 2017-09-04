@@ -37,5 +37,11 @@ func setupRoutes(handler *handler.Handler) Routes {
 			Pattern:     "/api/v1/deployment/{name}/release/promote",
 			HandlerFunc: handler.PromoteReleaseHandler,
 		},
+		&Route{
+			Name:        "GetDeployment",
+			Method:      "GET",
+			Pattern:     "/api/v1/deployment/{name}",
+			HandlerFunc: handler.GetDeployment,
+		},
 	}
 }
