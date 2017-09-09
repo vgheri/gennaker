@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS deployment (id SERIAL PRIMARY KEY, name TEXT UNIQUE NOT NULL, chart TEXT NOT NULL, chart_version TEXT, repository_url TEXT NOT NULL, creation_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(), last_update TIMESTAMP WITH TIME ZONE DEFAULT NOW());
 CREATE TABLE IF NOT EXISTS pipeline_step (id SERIAL PRIMARY KEY, step_number INT NOT NULL, parent_step_number int, deployment_id INT NOT NULL, target_namespace TEXT NOT NULL, auto_deploy BOOLEAN DEFAULT FALSE);
-CREATE TABLE IF NOT EXISTS release (id SERIAL PRIMARY KEY, name TEXT NOT NULL, deployment_id INT NOT NULL, image_tag TEXT NOT NULL, timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(), namespace TEXT NOT NULL, values TEXT, chart TEXT NOT NULL, chart_version TEXT, status SMALLINT NOT NULL);
+CREATE TABLE IF NOT EXISTS release (id SERIAL PRIMARY KEY, name TEXT NOT NULL, deployment_id INT NOT NULL, image_tag TEXT NOT NULL, timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(), namespace TEXT NOT NULL, values TEXT, chart TEXT NOT NULL, chart_version TEXT, revision INT NOT NULL, status SMALLINT NOT NULL);
 
 CREATE INDEX ON pipeline_step (deployment_id);
 CREATE INDEX ON pipeline_step (id, parent_step_number);

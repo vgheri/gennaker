@@ -53,8 +53,11 @@ func (e *engine) HandleNewReleaseNotification(notification *ReleaseNotification)
 				fmt.Sprintf("Failed at installing or upgrading release %s in namespace %s", releaseNameForNamespace, step.TargetNamespace))
 		}
 		reports = append(reports, report)
-		go finalizeRelease(e.db, d, step.TargetNamespace, releaseNameForNamespace,
-			notification.ImageTag, notification.ReleaseValues)
+
+		lastRelease := getLastReleaseForNamespace(step.TargetNamespace, d)
+		revision := generateNextReleaseRevisionNumber(lastRelease)
+		go registerReleaseOutcome(e.db, d, step.TargetNamespace, releaseNameForNamespace,
+			notification.ImageTag, notification.ReleaseValues, revision)
 	}
 	return reports, nil
 }
@@ -84,10 +87,10 @@ func (e *engine) PromoteRelease(request *PromoteRequest) ([]string, error) {
 		return nil, errors.Errorf("Cannot promote: no release found for namespace %s", request.FromNamespace)
 	}
 	for _, step := range pipeline {
-		releaseNameForNamespace := generateReleaseName(d.Name, request.FromNamespace)
+		releaseNameForNamespace := generateReleaseName(d.Name, step.TargetNamespace)
 		// Namespace dependent configuration values are stored in $namespace-values.yml
 		// inside the chart located in engine.chartsDir
-		namespaceValuesFilePath := getNamespaceValuesFilePath(e.chartsDir, d.Name, d.ChartName, request.FromNamespace)
+		namespaceValuesFilePath := getNamespaceValuesFilePath(e.chartsDir, d.Name, d.ChartName, step.TargetNamespace)
 		releaseValues := buildReleaseValues(lastRelease.ImageTag, request.ReleaseValues)
 		report, err := helm.InstallOrUpgrade(releaseNameForNamespace, step.TargetNamespace,
 			repoName, d.ChartName, namespaceValuesFilePath, releaseValues)
@@ -96,51 +99,63 @@ func (e *engine) PromoteRelease(request *PromoteRequest) ([]string, error) {
 				fmt.Sprintf("Failed at installing or upgrading release %s in namespace %s", releaseNameForNamespace, step.TargetNamespace))
 		}
 		reports = append(reports, report)
-		go finalizeRelease(e.db, d, step.TargetNamespace, releaseNameForNamespace,
-			lastRelease.ImageTag, request.ReleaseValues)
+		lastReleaseForTargetNamespace := getLastReleaseForNamespace(step.TargetNamespace, d)
+		revision := generateNextReleaseRevisionNumber(lastReleaseForTargetNamespace)
+		go registerReleaseOutcome(e.db, d, step.TargetNamespace, releaseNameForNamespace,
+			lastRelease.ImageTag, request.ReleaseValues, revision)
 	}
 
 	return reports, nil
 }
 
-func getReleaseName(d *Deployment, step *PipelineStep) string {
-	var releaseNameForNamespace string
+func (e *engine) Rollback(request *RollbackRequest) (string, error) {
+	if request == nil {
+		return "", ErrBadRequest
+	}
+	if err := request.valid(); err != nil {
+		return "", errors.Wrap(err, "Rollback request is invalid")
+	}
+	d, err := e.db.GetDeployment(request.DeploymentName) // TODO: use e.GetDeployment when it's done
+	if err != nil {
+		return "", errors.Wrap(err, "Cannot get deployment")
+	}
+	var targetRelease *Release
 	// releases are ordered by most recent to less recent
-	for _, r := range d.Releases {
-		if r.Namespace == step.TargetNamespace {
-			releaseNameForNamespace = r.Name
-			break
+	releases := getReleasesForNamespace(request.Namespace, d)
+	if len(releases) < 2 {
+		return "", errors.Errorf("Cannot rollback: at least 2 releases needed in namespace %s", request.Namespace)
+	}
+	lastRelease := releases[0]
+	beforeLastRelease := releases[1]
+	targetRelease = beforeLastRelease
+	// If a specific revision has been specified
+	if request.Revision != 0 {
+		// Check this revision exists
+		var found bool
+		for _, r := range releases {
+			if r.Revision == request.Revision {
+				targetRelease = r
+				found = true
+				break
+			}
+		}
+		if !found {
+			return "", errors.Errorf("Cannot rollback: revision %d does not exist", request.Revision)
 		}
 	}
-	if len(releaseNameForNamespace) == 0 {
-		releaseNameForNamespace = generateReleaseName(d.Name, step.TargetNamespace)
+	report, err := helm.Rollback(targetRelease.Name, targetRelease.Revision)
+	if err != nil {
+		return "", err
 	}
-	return releaseNameForNamespace
+	go registerReleaseOutcome(e.db, d, request.Namespace, targetRelease.Name,
+		targetRelease.ImageTag, targetRelease.Values, lastRelease.Revision+1)
+	return report, nil
 }
 
-func getNamespaceValuesFilePath(generalchartsDirPath, deploymentName, chartName, namespace string) string {
-	chartPath := path.Join(generalchartsDirPath, deploymentName, chartName)
-	return path.Join(chartPath, fmt.Sprintf("%s-values.yaml", namespace))
-}
-
-func buildReleaseValues(tag, releaseValues string) string {
-	imageTagValue := fmt.Sprintf("%s=%s", imageTag, tag)
-	if len(strings.TrimSpace(releaseValues)) == 0 {
-		releaseValues = imageTagValue
-	} else {
-		releaseValues = fmt.Sprintf("%s,%s", releaseValues, imageTagValue)
-	}
-	return releaseValues
-}
-
-func generateReleaseName(deploymentName, namespace string) string {
-	// return fmt.Sprintf("%s-%s-%s", deploymentName, namespace, utils.GenerateRandomString(5))
-	return fmt.Sprintf("%s-%s", utils.GenerateRandomString(5), utils.GenerateRandomString(5))
-}
-
-// finalizeRelease loops for 5 minutes waiting to have a status != Unknown
+// registerReleaseOutcome loops for 5 minutes waiting to have a status != Unknown
 // to persist release status in db
-func finalizeRelease(repository DeploymentRepository, deployment *Deployment, namespace, releaseName, imageTag, releaseValues string) {
+func registerReleaseOutcome(repository DeploymentRepository, deployment *Deployment,
+	namespace, releaseName, imageTag, releaseValues string, revision int) {
 	// TODO
 	// loop for 5 minutes for status to report either success or failure
 	// once it's done, update the DB
@@ -180,21 +195,46 @@ func finalizeRelease(repository DeploymentRepository, deployment *Deployment, na
 		Values:       releaseValues,
 		Chart:        deployment.ChartName,
 		ChartVersion: deployment.ChartVersion,
+		Revision:     revision,
 		Status:       releaseOutcome,
 	}
 	// TODO: log error
 	_, _ = repository.CreateRelease(release)
 }
 
-func getPipelineForNamespace(namespace string, pipeline []*PipelineStep) []*PipelineStep {
-	for _, step := range pipeline {
-		if step.TargetNamespace == namespace {
-			return step.NextSteps
-		} else {
-			return getPipelineForNamespace(namespace, step.NextSteps)
+func getReleaseName(d *Deployment, step *PipelineStep) string {
+	var releaseNameForNamespace string
+	// releases are ordered by most recent to less recent
+	for _, r := range d.Releases {
+		if r.Namespace == step.TargetNamespace {
+			releaseNameForNamespace = r.Name
+			break
 		}
 	}
-	return nil
+	if len(releaseNameForNamespace) == 0 {
+		releaseNameForNamespace = generateReleaseName(d.Name, step.TargetNamespace)
+	}
+	return releaseNameForNamespace
+}
+
+func getNamespaceValuesFilePath(generalchartsDirPath, deploymentName, chartName, namespace string) string {
+	chartPath := path.Join(generalchartsDirPath, deploymentName, chartName)
+	return path.Join(chartPath, fmt.Sprintf("%s-values.yaml", namespace))
+}
+
+func buildReleaseValues(tag, releaseValues string) string {
+	imageTagValue := fmt.Sprintf("%s=%s", imageTag, tag)
+	if len(strings.TrimSpace(releaseValues)) == 0 {
+		releaseValues = imageTagValue
+	} else {
+		releaseValues = fmt.Sprintf("%s,%s", releaseValues, imageTagValue)
+	}
+	return releaseValues
+}
+
+func generateReleaseName(deploymentName, namespace string) string {
+	// return fmt.Sprintf("%s-%s-%s", deploymentName, namespace, utils.GenerateRandomString(5))
+	return fmt.Sprintf("%s-%s", utils.GenerateRandomString(5), utils.GenerateRandomString(5))
 }
 
 func getLastReleaseForNamespace(namespace string, d *Deployment) *Release {
@@ -204,4 +244,22 @@ func getLastReleaseForNamespace(namespace string, d *Deployment) *Release {
 		}
 	}
 	return nil
+}
+
+func getReleasesForNamespace(namespace string, d *Deployment) []*Release {
+	var releases []*Release
+	for _, r := range d.Releases {
+		if r.Namespace == namespace {
+			releases = append(releases, r)
+		}
+	}
+	return releases
+}
+
+func generateNextReleaseRevisionNumber(lastRelease *Release) int {
+	revision := 1
+	if lastRelease != nil {
+		revision = lastRelease.Revision + 1
+	}
+	return revision
 }

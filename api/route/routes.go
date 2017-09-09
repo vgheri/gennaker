@@ -38,6 +38,12 @@ func setupRoutes(handler *handler.Handler) Routes {
 			HandlerFunc: handler.PromoteReleaseHandler,
 		},
 		&Route{
+			Name:        "RollbackRelease",
+			Method:      "POST",
+			Pattern:     "/api/v1/deployment/{name}/release/rollback",
+			HandlerFunc: handler.RollbackReleaseHandler,
+		},
+		&Route{
 			Name:        "GetDeployment",
 			Method:      "GET",
 			Pattern:     "/api/v1/deployment/{name}",

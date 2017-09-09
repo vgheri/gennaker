@@ -136,6 +136,43 @@ func (h *Handler) PromoteReleaseHandler(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusCreated)
 }
 
+// RollbackReleaseHandler serves rollback requests
+func (h *Handler) RollbackReleaseHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	deploymentName := vars["name"]
+	// Decode request
+	var reqBody RollbackReleaseRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&reqBody); err != nil {
+		writeJSONError(w, err.Error(), 422)
+		return
+	}
+
+	// Prepare business call
+	report, err := h.deploymentEngine.Rollback(
+		&engine.RollbackRequest{
+			DeploymentName: deploymentName,
+			Namespace:      reqBody.Namespace,
+			Revision:       reqBody.Revision,
+		})
+	if err != nil {
+		// TODO: Get the status code from map of errors
+		writeJSONError(w, err.Error(),
+			http.StatusBadRequest)
+		return
+	}
+
+	// Encode response
+	respBody := RollbackReleaseResponse{Report: report}
+	err = json.NewEncoder(w).Encode(respBody)
+	if err != nil {
+		writeJSONError(w, err.Error(),
+			http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
 // GetDeployment gets the desired deployment
 func (h *Handler) GetDeployment(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

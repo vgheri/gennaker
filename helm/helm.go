@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -308,6 +309,60 @@ func Status(releaseName string) (ReleaseStatus, string, error) {
 	}
 
 	return releaseStatus, output, nil
+}
+
+// Rollback restores a previous release revision, issuing
+// helm rollback command
+func Rollback(releaseName string, revision int) (string, error) {
+	if len(strings.TrimSpace(releaseName)) == 0 {
+		return "", errors.New("Release name is mandatory")
+	}
+	cmdName := helmCmd
+	var cmdArgs = []string{"rollback", releaseName, strconv.Itoa(revision)}
+	cmd := exec.Command(cmdName, cmdArgs...)
+	cmdReader, err := cmd.StdoutPipe()
+	if err != nil {
+		errors.Wrap(err, "Error creating StdoutPipe for helm rollback")
+		return "", err
+	}
+	scanner := bufio.NewScanner(cmdReader)
+	var output string
+	go func() {
+		for scanner.Scan() {
+			line := scanner.Text()
+			output = strings.Join([]string{output, line}, "\n")
+		}
+	}()
+	cmdErrReader, err := cmd.StderrPipe()
+	if err != nil {
+		return "", errors.Wrap(err, "Error creating StderrPipe for helm rollback")
+	}
+	errScanner := bufio.NewScanner(cmdErrReader)
+	rollbackSuccess := true
+	var helmErrorMsg string
+	go func() {
+		for errScanner.Scan() {
+			line := errScanner.Text()
+			if strings.HasPrefix(line, "ERROR:") {
+				rollbackSuccess = false
+				helmErrorMsg = line
+				break
+			}
+		}
+	}()
+	fmt.Printf("%s %s\n", cmdName, cmdArgs)
+	err = cmd.Start()
+	if err != nil {
+		return "", errors.Wrap(err, "Could not start command helm rollback:")
+	}
+	err = cmd.Wait()
+	if err != nil {
+		return "", errors.Wrap(err, fmt.Sprintf("Error waiting for command helm rollback: %s", helmErrorMsg))
+	}
+	if !rollbackSuccess {
+		return output, errors.Errorf("Failed at rolling back release: %s", helmErrorMsg)
+	}
+	return output, nil
 }
 
 func generateRandomRepoName() string {
