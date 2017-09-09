@@ -37,6 +37,16 @@ type PromoteReleaseResponse struct {
 	Reports []string `json:"reports"`
 }
 
+// PromoteReleaseRequest POST /api/v1/deployment/{name}/release/promote
+type RollbackReleaseRequest struct {
+	Namespace string `json:"namespace"`
+	Revision  int    `json:"revision"`
+}
+
+type RollbackReleaseResponse struct {
+	Report string `json:"report"`
+}
+
 type GetDeploymentResponse struct {
 	Deployment *engine.Deployment
 }

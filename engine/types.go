@@ -36,6 +36,7 @@ type Release struct {
 	Values       string                 `json:"values"`
 	Chart        string                 `json:"chart"`
 	ChartVersion string                 `json:"chart_version"`
+	Revision     int                    `json:"revision"`
 	Status       GennakerReleaseOutcome `json:"status"`
 }
 
@@ -62,6 +63,12 @@ type PromoteRequest struct {
 	ReleaseValues  string
 }
 
+type RollbackRequest struct {
+	DeploymentName string
+	Namespace      string
+	Revision       int
+}
+
 //DeploymentService describes all functionalities exposed by gennaker
 type DeploymentEngine interface {
 	ListDeployments(limit, offset int) ([]*Deployment, error)
@@ -70,6 +77,7 @@ type DeploymentEngine interface {
 	CreateDeployment(deployment *Deployment) (int, error)
 	HandleNewReleaseNotification(notification *ReleaseNotification) ([]string, error)
 	PromoteRelease(request *PromoteRequest) ([]string, error)
+	Rollback(request *RollbackRequest) (string, error)
 }
 
 //DeploymentRepository contains all necessary database support methods
@@ -124,6 +132,16 @@ func (r *PromoteRequest) valid() error {
 	if len(strings.TrimSpace(r.ReleaseValues)) != 0 && // TODO use regex
 		!strings.Contains(r.ReleaseValues, "=") {
 		return errors.New("Invalid ReleaseValues")
+	}
+	return nil
+}
+
+func (r *RollbackRequest) valid() error {
+	if len(strings.TrimSpace(r.DeploymentName)) == 0 {
+		return errors.New("Deployment name cannot be empty")
+	}
+	if len(strings.TrimSpace(r.Namespace)) == 0 {
+		return errors.New("Namespace cannot be empty")
 	}
 	return nil
 }

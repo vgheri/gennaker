@@ -70,3 +70,14 @@ func buildPipeline(pathToChartOnDisk string) ([]*PipelineStep, error) {
 
 	return pipeline, nil
 }
+
+func getPipelineForNamespace(namespace string, pipeline []*PipelineStep) []*PipelineStep {
+	for _, step := range pipeline {
+		if step.TargetNamespace == namespace {
+			return step.NextSteps
+		} else {
+			return getPipelineForNamespace(namespace, step.NextSteps)
+		}
+	}
+	return nil
+}

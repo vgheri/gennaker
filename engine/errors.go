@@ -13,3 +13,5 @@ var ErrInvalidDeployment error = fmt.Errorf("Invalid deployment")
 var ErrInvalidPipeline error = fmt.Errorf("Invalid pipeline")
 
 var ErrInvalidReleaseNotification error = fmt.Errorf("Invalid release notification")
+
+var ErrBadRequest error = fmt.Errorf("Invalid input parameter")
