@@ -60,6 +60,7 @@ type ReleaseNotification struct {
 type PromoteRequest struct {
 	DeploymentName string
 	FromNamespace  string
+	ImageTag       string
 	ReleaseValues  string
 }
 

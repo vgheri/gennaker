@@ -30,6 +30,7 @@ type NewDeploymentReleaseNotificationResponse struct {
 // PromoteReleaseRequest POST /api/v1/deployment/{name}/release/promote
 type PromoteReleaseRequest struct {
 	FromNamespace string `json:"from_namespace"`
+	ImageTag      string `json:"image_tag"`
 	ReleaseValues string `json:"release_values"`
 }
 
