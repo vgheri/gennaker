@@ -117,6 +117,7 @@ func (h *Handler) PromoteReleaseHandler(w http.ResponseWriter, r *http.Request) 
 			DeploymentName: deploymentName,
 			FromNamespace:  reqBody.FromNamespace,
 			ReleaseValues:  reqBody.ReleaseValues,
+			ImageTag:       reqBody.ImageTag,
 		})
 	if err != nil {
 		// TODO: Get the status code from map of errors

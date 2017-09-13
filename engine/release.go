@@ -39,6 +39,10 @@ func (e *engine) HandleNewReleaseNotification(notification *ReleaseNotification)
 	if err != nil {
 		return reports, errors.Wrap(err, fmt.Sprintf("Cannot get repository name for url %s", d.RepositoryURL))
 	}
+
+	// TODO: factorize content of for loop into its own method
+	// and use it for Promote too.
+	// parallelize with goroutines and channel to collect reports
 	for _, step := range d.Pipeline {
 		releaseNameForNamespace := getReleaseName(d, step)
 
@@ -82,16 +86,33 @@ func (e *engine) PromoteRelease(request *PromoteRequest) ([]string, error) {
 	if len(pipeline) == 0 {
 		return nil, errors.Errorf("Cannot promote from namespace %s", request.FromNamespace)
 	}
-	lastRelease := getLastReleaseForNamespace(request.FromNamespace, d)
-	if lastRelease == nil {
+
+	// Find release to promote
+	var releaseToPromote *Release
+	if len(strings.TrimSpace(request.ImageTag)) == 0 {
+		releaseToPromote = getLastReleaseForNamespace(request.FromNamespace, d)
+	} else { // Let's search for specified version
+		releases := getReleasesForNamespace(request.FromNamespace, d)
+		for _, r := range releases {
+			if r.ImageTag == request.ImageTag {
+				releaseToPromote = r
+				break
+			}
+		}
+	}
+	if releaseToPromote == nil {
 		return nil, errors.Errorf("Cannot promote: no release found for namespace %s", request.FromNamespace)
 	}
+
+	// TODO: factorize content of for loop into its own method
+	// Perform promote for each next in line namespace
+	// TODO: parallelize with goroutines and channel to collect reports
 	for _, step := range pipeline {
-		releaseNameForNamespace := generateReleaseName(d.Name, step.TargetNamespace)
+		releaseNameForNamespace := getReleaseName(d, step)
 		// Namespace dependent configuration values are stored in $namespace-values.yml
 		// inside the chart located in engine.chartsDir
 		namespaceValuesFilePath := getNamespaceValuesFilePath(e.chartsDir, d.Name, d.ChartName, step.TargetNamespace)
-		releaseValues := buildReleaseValues(lastRelease.ImageTag, request.ReleaseValues)
+		releaseValues := buildReleaseValues(releaseToPromote.ImageTag, request.ReleaseValues)
 		report, err := helm.InstallOrUpgrade(releaseNameForNamespace, step.TargetNamespace,
 			repoName, d.ChartName, namespaceValuesFilePath, releaseValues)
 		if err != nil {
@@ -102,7 +123,7 @@ func (e *engine) PromoteRelease(request *PromoteRequest) ([]string, error) {
 		lastReleaseForTargetNamespace := getLastReleaseForNamespace(step.TargetNamespace, d)
 		revision := generateNextReleaseRevisionNumber(lastReleaseForTargetNamespace)
 		go registerReleaseOutcome(e.db, d, step.TargetNamespace, releaseNameForNamespace,
-			lastRelease.ImageTag, request.ReleaseValues, revision)
+			releaseToPromote.ImageTag, request.ReleaseValues, revision)
 	}
 
 	return reports, nil
